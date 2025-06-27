@@ -19,14 +19,13 @@ enum class LeggedType {
 	B1
 };
 
-enum class HighLevelType {
-	Basic,
-	Sport
-};
+// enum class LevelType {
+// 	Low,
+// 	High
+// };
 
 string VersionSDK();
-int InitEnvironment();
-
+int InitEnvironment();      // memory lock
 
 // definition of each leg and joint
 constexpr int FR_ = 0;       // leg index

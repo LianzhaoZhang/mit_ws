@@ -15,6 +15,9 @@
     #ifdef ROBOT_TYPE_Go1
         #include "unitree_legged_sdk/unitree_legged_sdk.h"
     #endif  // ROBOT_TYPE_Go1
+    #ifdef ROBOT_TYPE_B1
+        #include "unitree_legged_sdk/unitree_legged_sdk.h"
+    #endif  // ROBOT_TYPE_B1
 #endif  // COMPILE_WITH_REAL_ROBOT
 
 struct UserValue{

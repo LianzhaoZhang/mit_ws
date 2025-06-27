@@ -163,3 +163,30 @@ Go1Robot::Go1Robot(){
     _Ib = Vec3(0.0792, 0.2085, 0.2265).asDiagonal();
 #endif  // COMPILE_WITH_SIMULATION
 }
+
+B1Robot::B1Robot(){
+    _Legs[0] = new B1Leg(0, Vec3( 0.3455, -0.072, 0));
+    _Legs[1] = new B1Leg(1, Vec3( 0.3455,  0.072, 0));
+    _Legs[2] = new B1Leg(2, Vec3(-0.3455, -0.072, 0));
+    _Legs[3] = new B1Leg(3, Vec3(-0.3455,  0.072, 0));
+
+    _feetPosNormalStand <<  0.3455,  0.3455, -0.3455, -0.3455,
+                           -0.2300,  0.2300, -0.2300,  0.2300,
+                           -0.5500, -0.5500, -0.5500, -0.5500;
+
+    _robVelLimitX << -0.4, 0.4;
+    _robVelLimitY << -0.3, 0.3;
+    _robVelLimitYaw << -0.5, 0.5;
+
+#ifdef COMPILE_WITH_REAL_ROBOT
+    _mass = 61.7;
+    _pcb << 0.0, 0.0, 0.0;
+    _Ib = Vec3(0.228928, 0.945410, 0.979722).asDiagonal();
+#endif  // COMPILE_WITH_REAL_ROBOT
+
+#ifdef COMPILE_WITH_SIMULATION
+    _mass = 62.58;
+    _pcb << 0.0, 0.0, 0.0;
+    _Ib = Vec3(0.328928, 0.945410, 0.979722).asDiagonal();
+#endif  // COMPILE_WITH_SIMULATION
+}

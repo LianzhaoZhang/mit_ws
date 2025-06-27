@@ -16,7 +16,8 @@ enum class CtrlPlatform
 enum class RobotType
 {
     A1,
-    Go1
+    Go1,
+    B1
 };
 
 enum class UserCommand

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 project(unitree_guide)
 
-set(ROBOT_TYPE Go1)         # The type of robot, support Go1 and A1 currently
+set(ROBOT_TYPE B1)         # The type of robot, support Go1, A1 and B1 currently
 set(PLATFORM amd64)         # The platform to compile, support amd64 and arm64
 
 set(CATKIN_MAKE ON)        # Use CATKIN_MAKE or not, ON or OFF
@@ -21,6 +21,8 @@ if(${ROBOT_TYPE} STREQUAL "A1")
     add_definitions(-DROBOT_TYPE_A1)
 elseif(${ROBOT_TYPE} STREQUAL "Go1")
     add_definitions(-DROBOT_TYPE_Go1)
+elseif(${ROBOT_TYPE} STREQUAL "B1")
+    add_definitions(-DROBOT_TYPE_B1)
 else()
     message(FATAL_ERROR "[CMake ERROR] The ROBOT_TYPE is error")
 endif()
@@ -106,6 +108,19 @@ if(REAL_ROBOT)
                 library/unitree_legged_sdk-3.8.0/lib/cpp/arm64
             )
         endif()
+    elseif(${ROBOT_TYPE} STREQUAL "B1")
+        include_directories(
+            library/unitree_legged_sdk_3.8.3/include
+        )
+        if(${PLATFORM} STREQUAL "amd64")
+            link_directories(
+                library/unitree_legged_sdk_3.8.3/lib/cpp/amd64
+            )
+        elseif(${PLATFORM} STREQUAL "arm64")
+            link_directories(
+                library/unitree_legged_sdk_3.8.3/lib/cpp/arm64
+            )
+        endif()
     endif()
 endif()
 
@@ -137,6 +152,12 @@ if(REAL_ROBOT)
         endif()
     elseif(${ROBOT_TYPE} STREQUAL "Go1")
             target_link_libraries(junior_ctrl libunitree_legged_sdk.a)
+    elseif(${ROBOT_TYPE} STREQUAL "B1")
+        if(${PLATFORM} STREQUAL "amd64")
+            target_link_libraries(junior_ctrl libunitree_legged_sdk_amd64.so)
+        elseif(${PLATFORM} STREQUAL "arm64")
+            target_link_libraries(junior_ctrl libunitree_legged_sdk_arm64.so)
+        endif()
     endif()
 endif()
 target_link_libraries(junior_ctrl -pthread lcm)

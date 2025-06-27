@@ -23,17 +23,14 @@ State_MPC::State_MPC(CtrlComponents *ctrlComp)
       _contact(ctrlComp->contact), _robModel(ctrlComp->robotModel),
       _balCtrl(ctrlComp->balCtrl)
 {
-    _gait = new GaitGenerator(ctrlComp); 
-    _gaitHeight = 0.1; // 抬腿高度设置 gait height setting
-
-    // unitree A1 
-    _Kpp = Vec3(20, 20, 100).asDiagonal(); 
-    _Kdp = Vec3(20, 20, 20).asDiagonal();
-    _kpw = 400;
-    _Kdw = Vec3(50, 50, 50).asDiagonal();
-    _KpSwing = Vec3(400, 400, 400).asDiagonal();
-    _KdSwing = Vec3(10, 10, 10).asDiagonal();
-
+    _gait = new GaitGenerator(ctrlComp);
+    
+    // Load parameters from YAML
+    loadParameters();
+    
+    // Initialize dynamic matrices after loading parameters
+    initializeMatrices();
+    
     _vxLim = _robModel->getRobVelLimitX();
     _vyLim = _robModel->getRobVelLimitY();
     _wyawLim = _robModel->getRobVelLimitYaw();
@@ -49,53 +46,73 @@ State_MPC::State_MPC(CtrlComponents *ctrlComp)
     setWeight();
 }
 
-void State_MPC::setWeight() // Setting up Q and R matrices for MPC.
+void State_MPC::loadParameters()
 {
-    Q_diag.resize(1, nx);
-    R_diag.resize(1, nu);
-    Q_diag.setZero();
-    R_diag.setZero();
-
-    Q_diag << 30.0, 30.0, 1.0, // r,p,y, 
-            1.0, 1.0, 220.0,   // pCoM
-            1.05, 1.05, 1.05,  // w
-            20.0, 20.0, 20.0,  // vcom 
-            0.0;
-            
-    R_diag <<   1.0, 1.0, 0.1, 
-                1.0, 1.0, 0.1, 
-                1.0, 1.0, 0.1,  
-                1.0, 1.0, 0.1; 
-    R_diag = R_diag * 1e-5; 
-
-    Q_diag_N.resize(1, nx * mpc_N);
-    R_diag_N.resize(1, nu * mpc_N);
-    Q_diag_N.setZero();
-    R_diag_N.setZero();
-    Q.resize(nx * mpc_N, nx * mpc_N);
-    R.resize(nu * mpc_N, nu * mpc_N);
-    Q.setZero();
-    R.setZero();
-
-    for (int i = 0; i < mpc_N; i++)
-    {
-        Q_diag_N.block<1, nx>(0, i * nx) = Q_diag;
+    // Get robot type from parameter server
+    if (!nh.getParam("/robot_type", robot_type_)) {
+        robot_type_ = "go1"; // default
+        ROS_WARN("Robot type not specified, using default: go1");
     }
+    
+    std::string config_file = "/home/zlz/mit_ws/src/unitree_guide/config/" + robot_type_ + ".yaml";
+    
+    // Load MPC parameters
+    nh.param(robot_type_ + "/mpc_parameters/mpc_N", mpc_N, 8);
+    nh.param(robot_type_ + "/mpc_parameters/nx", nx, 13);
+    nh.param(robot_type_ + "/mpc_parameters/nu", nu, 12);
+    nh.param(robot_type_ + "/mpc_parameters/speed_limx", speed_limx, 1.5);
+    nh.param(robot_type_ + "/mpc_parameters/fz_max", fz_max, 180.0);
+    nh.param(robot_type_ + "/mpc_parameters/g", g, 9.8);
+    nh.param(robot_type_ + "/mpc_parameters/miu", miu, 0.3);
+    nh.param(robot_type_ + "/mpc_parameters/d_time", d_time, 0.01);
+    
+    // Load control gains
+    std::vector<double> kpp_vec, kdp_vec, kdw_vec, kpswing_vec, kdswing_vec;
+    double kpw_val;
+    
+    nh.param(robot_type_ + "/control_gains/Kpp", kpp_vec, std::vector<double>{20.0, 20.0, 100.0});
+    nh.param(robot_type_ + "/control_gains/Kdp", kdp_vec, std::vector<double>{20.0, 20.0, 20.0});
+    nh.param(robot_type_ + "/control_gains/kpw", kpw_val, 400.0);
+    nh.param(robot_type_ + "/control_gains/Kdw", kdw_vec, std::vector<double>{50.0, 50.0, 50.0});
+    nh.param(robot_type_ + "/control_gains/KpSwing", kpswing_vec, std::vector<double>{400.0, 400.0, 400.0});
+    nh.param(robot_type_ + "/control_gains/KdSwing", kdswing_vec, std::vector<double>{10.0, 10.0, 10.0});
+    
+    _Kpp = Vec3(kpp_vec[0], kpp_vec[1], kpp_vec[2]).asDiagonal();
+    _Kdp = Vec3(kdp_vec[0], kdp_vec[1], kdp_vec[2]).asDiagonal();
+    _kpw = kpw_val;
+    _Kdw = Vec3(kdw_vec[0], kdw_vec[1], kdw_vec[2]).asDiagonal();
+    _KpSwing = Vec3(kpswing_vec[0], kpswing_vec[1], kpswing_vec[2]).asDiagonal();
+    _KdSwing = Vec3(kdswing_vec[0], kdswing_vec[1], kdswing_vec[2]).asDiagonal();
+    
+    // Load gait parameters
+    nh.param(robot_type_ + "/gait/gait_height", _gaitHeight, 0.1);
+    
+    ROS_INFO("Loaded parameters for robot type: %s", robot_type_.c_str());
+}
 
-    for (int i = 0; i < mpc_N; i++)
-    {
-        R_diag_N.block<1, nu>(0, i * nu) = R_diag;
-    }
-
-    for (int i = 0; i < nx * mpc_N; i++)
-    {
-        Q(i, i) = Q_diag_N(0, i);
-    }
-
-    for (int i = 0; i < nu * mpc_N; i++)
-    {
-        R(i, i) = R_diag_N(0, i);
-    }
+void State_MPC::initializeMatrices()
+{
+    // Initialize all dynamic matrices with proper sizes
+    currentStates.resize(nx);
+    Xd.resize(nx * mpc_N);
+    Ac.resize(nx, nx);
+    Bc.resize(nx, nu);
+    Ad.resize(nx, nx);
+    Bd.resize(nx, nu);
+    Aqp.resize(nx * mpc_N, nx);
+    Bd_list.resize(nx * mpc_N, nu);
+    gradient.resize(nu * mpc_N);
+    
+    // Initialize matrices to zero
+    currentStates.setZero();
+    Xd.setZero();
+    Ac.setZero();
+    Bc.setZero();
+    Ad.setZero();
+    Bd.setZero();
+    Aqp.setZero();
+    Bd_list.setZero();
+    gradient.setZero();
 }
 
 State_MPC::~State_MPC()
@@ -287,7 +304,7 @@ void State_MPC::SetMatrices() // Setting up Hessian, G and Gradient, g0.
 
     // Desired States
     for (int i = 0; i < (mpc_N - 1); i++)
-        Xd.block<nx, 1>(nx * i, 0) = Xd.block<nx, 1>(nx * (i + 1), 0);
+        Xd.segment(nx * i, nx) = Xd.segment(nx * (i + 1), nx);
         Xd(nx * (mpc_N - 1) + 2) = _yawCmd;
     for (int j = 0; j < 3; j++)
         Xd(nx * (mpc_N - 1) + 3 + j) = _pcd(j);
@@ -300,8 +317,8 @@ void State_MPC::SetMatrices() // Setting up Hessian, G and Gradient, g0.
     // Ac
     Ac.setZero();
     R_curz = Rz3(_yaw);
-    Ac.block<3, 3>(0, 6) = R_curz.transpose();
-    Ac.block<3, 3>(3, 9) = I3;
+    Ac.block(0, 6, 3, 3) = R_curz.transpose();
+    Ac.block(3, 9, 3, 3) = I3;
     Ac(11, nu) = 1;
     Ac(12, nu) = 1; 
 
@@ -310,17 +327,15 @@ void State_MPC::SetMatrices() // Setting up Hessian, G and Gradient, g0.
     Ic_W_inv = (R_curz * Ic * R_curz.transpose()).inverse(); // Inverse of A1 inertia in world coordinates
     Bc.setZero();
     for (int i = 0; i < 4; i++){
-        Bc.block<3, 3>(6, 3 * i) =
-                Ic_W_inv * CrossProduct_A(_posFeet2BGlobal.block<3, 1>(0, i));
-        Bc.block<3, 3>(9, 3 * i) =
-                (1 / _mass) * I3;
+        Bc.block(6, 3 * i, 3, 3) = Ic_W_inv * CrossProduct_A(_posFeet2BGlobal.block<3, 1>(0, i));
+        Bc.block(9, 3 * i, 3, 3) = (1 / _mass) * I3;
     }
 
     // Ad = I + Ac * dt，Bd = Bc * dt
     Ad.setZero();
     Bd.setZero();
 
-    Ad = Eigen::Matrix<double, nx, nx>::Identity() + Ac * d_time;
+    Ad = Eigen::MatrixXd::Identity(nx, nx) + Ac * d_time;
     Bd = Bc * d_time;
 
     // Aqp = [  A,
@@ -344,22 +359,22 @@ void State_MPC::SetMatrices() // Setting up Hessian, G and Gradient, g0.
 
     for (int i = 0; i < mpc_N; ++i) {
         if (i == 0) {
-            Aqp.block<nx, nx>(nx * i, 0) = Ad;
+            Aqp.block(nx * i, 0, nx, nx) = Ad;
         } else {
-            Aqp.block<nx, nx>(nx * i, 0) = 
-                Aqp.block<nx, nx>(nx * (i-1), 0) * Ad;
+            Aqp.block(nx * i, 0, nx, nx) = 
+                Aqp.block(nx * (i-1), 0, nx, nx) * Ad;
         }
     
         for (int j = 0; j <= i; ++j) {
             if (i == j) {
-                Bqp.block<nx, nu>(nx * i, nu * j) = Bd;
+                Bqp.block(nx * i, nu * j, nx, nu) = Bd;
             } else {
                 // 计算 A_d^{i-j_F-1} * Bd
                 Eigen::MatrixXd Ad_power = Eigen::MatrixXd::Identity(nx, nx);
                 for (int k = 0; k < i-j-1; ++k) {
                     Ad_power *= Ad;
                 }
-                Bqp.block<nx, nu>(nx * i, nu * j) = Ad_power * Bd;
+                Bqp.block(nx * i, nu * j, nx, nu) = Ad_power * Bd;
             }
         }
     }
@@ -372,7 +387,7 @@ void State_MPC::SetMatrices() // Setting up Hessian, G and Gradient, g0.
 
     gradient.setZero();
     
-    Eigen::Matrix<double, nx * mpc_N, 1> error = Aqp * currentStates;
+    Eigen::VectorXd error = Aqp * currentStates;
     error -= Xd;
     gradient = 2 * error.transpose() * Q * Bqp;
 
@@ -428,8 +443,8 @@ void State_MPC::ConstraintsSetup() // Setting up the constraint matrices for the
 
     CI_.resize(5 * contactLegNum * mpc_N, nu * mpc_N); // CI^T
     CE_.resize(3 * swingLegNum * mpc_N, nu * mpc_N);   // CE^T
-    ci0_.resize(5 * contactLegNum * mpc_N, 1);
-    ce0_.resize(3 * swingLegNum * mpc_N, 1);
+    ci0_.resize(5 * contactLegNum * mpc_N);
+    ce0_.resize(3 * swingLegNum * mpc_N);
 
     CI_.setZero();
     ci0_.setZero();
@@ -444,18 +459,18 @@ void State_MPC::ConstraintsSetup() // Setting up the constraint matrices for the
         {
             if ((*_contact)(i) == 1)
             {
-                CI_.block<5, 3>(5 * contactLegNum * k + 5 * ciID, nu * k + 3 * i) = miuMat;
+                CI_.block(5 * contactLegNum * k + 5 * ciID, nu * k + 3 * i, 5, 3) = miuMat;
                 ++ciID;
             }
             else
             {
-                CE_.block<3, 3>(3 * swingLegNum * k + 3 * ceID, nu * k + 3 * i) = I3;
+                CE_.block(3 * swingLegNum * k + 3 * ceID, nu * k + 3 * i, 3, 3) = I3;
                 ++ceID;
             }
         }
         
-        for (int i = 0; i < contactLegNum * mpc_N; ++i) {
-          ci0_.segment(i * 5, 5) << 0.0, 0.0, 0.0, 0.0, fz_max;
+        for (int i = 0; i < contactLegNum; ++i) {
+          ci0_.segment(k * contactLegNum * 5 + i * 5, 5) << 0.0, 0.0, 0.0, 0.0, fz_max;
         }
 
        // std::cout << "********1 ci0(MPC)********" << std::endl
@@ -594,4 +609,58 @@ Eigen::Matrix<double, 3, 3> State_MPC::Rz3(double theta)
         sin(theta), cos(theta), 0,
         0, 0, 1;
     return M;
+}
+
+void State_MPC::setWeight()
+{
+    // Load weight parameters
+    std::vector<double> q_diag_vec, r_diag_vec;
+    double r_scale;
+    
+    nh.param(robot_type_ + "/mpc_weights/Q_diag", q_diag_vec, 
+             std::vector<double>{30.0, 30.0, 1.0, 1.0, 1.0, 220.0, 1.05, 1.05, 1.05, 20.0, 20.0, 20.0, 0.0});
+    nh.param(robot_type_ + "/mpc_weights/R_diag", r_diag_vec,
+             std::vector<double>{1.0, 1.0, 0.1, 1.0, 1.0, 0.1, 1.0, 1.0, 0.1, 1.0, 1.0, 0.1});
+    nh.param(robot_type_ + "/mpc_weights/R_scale", r_scale, 1e-5);
+
+    Q_diag.resize(1, nx);
+    R_diag.resize(1, nu);
+    Q_diag.setZero();
+    R_diag.setZero();
+
+    for (int i = 0; i < nx; i++) {
+        Q_diag(0, i) = q_diag_vec[i];
+    }
+    
+    for (int i = 0; i < nu; i++) {
+        R_diag(0, i) = r_diag_vec[i];
+    }
+    R_diag = R_diag * r_scale;
+
+    Q_diag_N.resize(1, nx * mpc_N);
+    R_diag_N.resize(1, nu * mpc_N);
+    Q.resize(nx * mpc_N, nx * mpc_N);
+    R.resize(nu * mpc_N, nu * mpc_N);
+    Q.setZero();
+    R.setZero();
+
+    for (int i = 0; i < mpc_N; i++)
+    {
+        Q_diag_N.block(0, i * nx, 1, nx) = Q_diag;
+    }
+
+    for (int i = 0; i < mpc_N; i++)
+    {
+        R_diag_N.block(0, i * nu, 1, nu) = R_diag;
+    }
+
+    for (int i = 0; i < nx * mpc_N; i++)
+    {
+        Q(i, i) = Q_diag_N(0, i);
+    }
+
+    for (int i = 0; i < nu * mpc_N; i++)
+    {
+        R(i, i) = R_diag_N(0, i);
+    }
 }

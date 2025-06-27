@@ -14,18 +14,9 @@
 #include <ros/ros.h>
 #include <geometry_msgs/Vector3.h>
 
-
-// ************************** Important parameters ************************** // 
-static const int mpc_N = 8;  // Prediction horizon
-static const int nx = 13;    // Dimension of state vector
-static const int nu = 12;    // Dimension of control input
-static const double speed_limx = 1.5; // Speed limit in x direction
+// Constants that don't need configuration
 static const double NEGATIVE_NUMBER = -1000000.0;
 static const double POSITIVE_NUMBER = 1000000.0;
-static const double fz_max = 180.0; // Max force in z axis
-static const double g = 9.8;         // Gravity
-static const double miu = 0.3;       // Friction coef.
-static const double d_time = 0.01;  // Discretization time step, while the solver solves at 2.5-3.7 ms for horizon of 10, a larger time step is good for margins. 
 
 class State_MPC : public FSMState
 {
@@ -39,6 +30,21 @@ public:
     void setHighCmd(double vx, double vy, double wz);
 
 private:
+    // ************************** Parameter loading ************************** //
+    void loadParameters();
+    void initializeMatrices();
+    std::string robot_type_;
+    
+    // ************************** Configurable parameters ************************** //
+    int mpc_N;
+    int nx;
+    int nu;
+    double speed_limx;
+    double fz_max;
+    double g;
+    double miu;
+    double d_time;
+    
     // ************************** Publish for plotting ************************** // 
     ros::NodeHandle nh;
     ros::Publisher pub_euler = nh.advertise<geometry_msgs::Vector3>("euler_angles", 10);
@@ -106,18 +112,18 @@ private:
     double _mass;       
     Eigen::Matrix<double, 5, 3> miuMat;
     Eigen::Matrix<double, 3, 3> Ic;
-    Eigen::Matrix<double, nx, 1> currentStates;
-    Eigen::Matrix<double, nx * mpc_N, 1> Xd;
+    Eigen::VectorXd currentStates;
+    Eigen::VectorXd Xd;
     Eigen::Matrix<double, 3, 3> R_curz;
-    Eigen::Matrix<double, nx, nx> Ac;
-    Eigen::Matrix<double, nx, nu> Bc;
-    Eigen::Matrix<double, nx, nx> Ad;
-    Eigen::Matrix<double, nx, nu> Bd;
-    Eigen::Matrix<double, nx * mpc_N, nx> Aqp;
-    Eigen::Matrix<double, nx * mpc_N, nu> Bd_list;
+    Eigen::MatrixXd Ac;
+    Eigen::MatrixXd Bc;
+    Eigen::MatrixXd Ad;
+    Eigen::MatrixXd Bd;
+    Eigen::MatrixXd Aqp;
+    Eigen::MatrixXd Bd_list;
     Eigen::MatrixXd Bqp, x_vec, prediction_X;
     Eigen::MatrixXd dense_hessian;
-    Eigen::Matrix<double, nu * mpc_N, 1> gradient; // q
+    Eigen::VectorXd gradient;
     Eigen::MatrixXd Q_diag;
     Eigen::MatrixXd R_diag;
     Eigen::MatrixXd Q_diag_N;

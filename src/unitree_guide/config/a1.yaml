@@ -1,0 +1,44 @@
+mpc_parameters:
+  mpc_N: 8
+  nx: 13
+  nu: 12
+  speed_limx: 1.5
+  fz_max: 180.0
+  g: 9.8
+  miu: 0.3
+  d_time: 0.01
+
+control_gains:
+  Kpp: [20.0, 20.0, 100.0]
+  Kdp: [20.0, 20.0, 20.0]
+  kpw: 400.0
+  Kdw: [50.0, 50.0, 50.0]
+  KpSwing: [400.0, 400.0, 400.0]
+  KdSwing: [10.0, 10.0, 10.0]
+
+mpc_weights:
+  Q_diag: [30.0, 30.0, 1.0, 1.0, 1.0, 220.0, 1.05, 1.05, 1.05, 20.0, 20.0, 20.0, 0.0]
+  R_diag: [1.0, 1.0, 0.1, 1.0, 1.0, 0.1, 1.0, 1.0, 0.1, 1.0, 1.0, 0.1]
+  R_scale: 1e-5
+
+gait:
+  gait_height: 0.1
+
+lowlevel_cmd:
+  torque_limit: [-50.0, 50.0]
+  sim_stance_gain:
+    hip: {mode: 10, Kp: 180.0, Kd: 8.0}
+    thigh: {mode: 10, Kp: 180.0, Kd: 8.0}
+    calf: {mode: 10, Kp: 300.0, Kd: 15.0}
+  real_stance_gain:
+    hip: {mode: 10, Kp: 60.0, Kd: 5.0}
+    thigh: {mode: 10, Kp: 40.0, Kd: 4.0}
+    calf: {mode: 10, Kp: 80.0, Kd: 7.0}
+  stable_gain:
+    hip: {mode: 10, Kp: 0.8, Kd: 0.8}
+    thigh: {mode: 10, Kp: 0.8, Kd: 0.8}
+    calf: {mode: 10, Kp: 0.8, Kd: 0.8}
+  swing_gain:
+    hip: {mode: 10, Kp: 3.0, Kd: 2.0}
+    thigh: {mode: 10, Kp: 3.0, Kd: 2.0}
+    calf: {mode: 10, Kp: 3.0, Kd: 2.0}

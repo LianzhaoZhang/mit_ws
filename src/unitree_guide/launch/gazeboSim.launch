@@ -12,6 +12,10 @@
     <!-- Debug mode will hung up the robot, use "true" or "false" to switch it. -->
     <arg name="user_debug" default="false"/>
     
+    <!-- Load robot-specific MPC parameters -->
+    <rosparam file="$(find unitree_guide)/config/$(arg rname).yaml" command="load" ns="$(arg rname)"/>
+    <param name="robot_type" value="$(arg rname)"/>
+
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
         <arg name="world_name" value="$(find unitree_gazebo)/worlds/$(arg wname).world"/>
         <arg name="debug" value="$(arg debug)"/>

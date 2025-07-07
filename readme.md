@@ -1,5 +1,5 @@
 # 概述与使用方法
-Unitree A1机器人的模型预测控制器（MPC）。
+这是一个面向四足机器人的基础MPC控制器实现。
 
 该MPC控制器基于以下开源项目：
 1. MIT Cheetah的单刚体动力学方程
@@ -10,7 +10,7 @@ Unitree A1机器人的模型预测控制器（MPC）。
 控制器代码位于[State_MPC.cpp](./src/unitree_guide/src/FSM/State_MPC.cpp)和[State_MPC.h](./src/unitree_guide/include/FSM/State_MPC.h)。
 
 ## 注意事项
-这是一个面向四足机器人的基础MPC控制器实现。
+切换不同的机器人控制时，需要在CMakeLists.txt文件中修改`set(ROBOT_TYPE Go1)`，现在设置默认的机器人为Go1。
 
 ## 运行方法
 1. 进入项目文件夹：
